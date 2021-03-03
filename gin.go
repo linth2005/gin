@@ -129,13 +129,22 @@ var _ IRouter = &Engine{}
 func New() *Engine {
 	debugPrintWARNINGNew()
 	engine := &Engine{
+		// 路由组管理
 		RouterGroup: RouterGroup{
 			Handlers: nil,
 			basePath: "/",
 			root:     true,
 		},
-		FuncMap:                template.FuncMap{},
-		RedirectTrailingSlash:  true,
+		FuncMap: template.FuncMap{},
+		// 这个参数是否自动处理当访问路径最后带的 /，一般为 true 就行。
+		// 例如： 当访问 /foo/ 时， 此时没有定义 /foo/ 这个路由，但是定义了
+		// /foo 这个路由，就对自动将 /foo/ 重定向到 /foo (GET 请求
+		// 是 http 301 重定向，其他方式的请求是 http 307 重定向）。
+		RedirectTrailingSlash: true,
+		// 是否自动修正路径， 如果路由没有找到时，Router 会自动尝试修复。
+		// 首先删除多余的路径，像 ../ 或者 // 会被删除。
+		// 然后将清理过的路径再不区分大小写查找，如果能够找到对应的路由， 将请求重定向到
+		// 这个路由上 ( GET 是 301， 其他是 307 ) 。
 		RedirectFixedPath:      false,
 		HandleMethodNotAllowed: false,
 		ForwardedByClientIP:    true,
@@ -143,12 +152,15 @@ func New() *Engine {
 		UseRawPath:             false,
 		RemoveExtraSlash:       false,
 		UnescapePathValues:     true,
-		MaxMultipartMemory:     defaultMultipartMemory,
-		trees:                  make(methodTrees, 0, 9),
-		delims:                 render.Delims{Left: "{{", Right: "}}"},
-		secureJSONPrefix:       "while(1);",
+		// Multipart 请求内存不超过 32MB
+		MaxMultipartMemory: defaultMultipartMemory,
+		// 方法树根节点集合
+		trees:            make(methodTrees, 0, 9),
+		delims:           render.Delims{Left: "{{", Right: "}}"},
+		secureJSONPrefix: "while(1);",
 	}
 	engine.RouterGroup.engine = engine
+	// context对象池，基于sync.pool创建的对象池复用，
 	engine.pool.New = func() interface{} {
 		return engine.allocateContext()
 	}
@@ -156,9 +168,13 @@ func New() *Engine {
 }
 
 // Default returns an Engine instance with the Logger and Recovery middleware already attached.
+// 初始化Engine ，整个gin包最核心的结构体
 func Default() *Engine {
+	// 打印一些debug信息
 	debugPrintWARNINGDefault()
+	// 创建engine对象
 	engine := New()
+	// 载入日志和panic捕获中间件
 	engine.Use(Logger(), Recovery())
 	return engine
 }
@@ -373,6 +389,7 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c.Request = req
 	c.reset()
 
+	// 处理实际的请求
 	engine.handleHTTPRequest(c)
 
 	engine.pool.Put(c)

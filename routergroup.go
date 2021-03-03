@@ -39,10 +39,14 @@ type IRoutes interface {
 // RouterGroup is used internally to configure router, a RouterGroup is associated with
 // a prefix and an array of handlers (middleware).
 type RouterGroup struct {
+	// 中间件调用链
 	Handlers HandlersChain
+	// 相对于子路由的上级路径
 	basePath string
-	engine   *Engine
-	root     bool
+	// 父节点路由的engine实体
+	engine *Engine
+	// 是否为根节点
+	root bool
 }
 
 var _ IRouter = &RouterGroup{}
