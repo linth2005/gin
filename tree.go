@@ -151,9 +151,11 @@ func (n *node) incrementChildPrio(pos int) int {
 // Not concurrency-safe!
 func (n *node) addRoute(path string, handlers HandlersChain) {
 	fullPath := path
+	// 越下面的叶子节点优先级越高
 	n.priority++
 
 	// Empty tree
+	// 如果树上的第一个节点，则直接插入，并设置为root节点
 	if len(n.path) == 0 && len(n.children) == 0 {
 		n.insertChild(path, fullPath, handlers)
 		n.nType = root
@@ -167,20 +169,25 @@ walk:
 		// Find the longest common prefix.
 		// This also implies that the common prefix contains no ':' or '*'
 		// since the existing key can't contain those chars.
+		// 获取公共前缀的长度
 		i := longestCommonPrefix(path, n.path)
 
-		// Split edge
+		// 拆分当前节点
+		// 例如一开始path是search，新加入support，s是他们通用的最长前缀部分
+		// 那么会将s拿出来作为parent节点，增加earch和upport作为child节点
 		if i < len(n.path) {
+			// 构造一个子节点
 			child := node{
+				// path 剔除掉公共前缀，作为新的子节点
 				path:      n.path[i:],
 				wildChild: n.wildChild,
 				indices:   n.indices,
 				children:  n.children,
 				handlers:  n.handlers,
-				priority:  n.priority - 1,
+				priority:  n.priority - 1, // 子节点优先级 -1
 				fullPath:  n.fullPath,
 			}
-
+			// 当前节点赋予子节点
 			n.children = []*node{&child}
 			// []byte for proper unicode char conversion, see #65
 			n.indices = bytesconv.BytesToString([]byte{n.path[i]})
@@ -191,9 +198,10 @@ walk:
 		}
 
 		// Make new node a child of this node
+		// 将新来的节点插入新的parent节点作为子节点
 		if i < len(path) {
 			path = path[i:]
-
+			// 参数节点相关处理
 			if n.wildChild {
 				parentFullPathIndex += len(n.path)
 				n = n.children[0]
@@ -220,9 +228,10 @@ walk:
 					"'")
 			}
 
+			// 取path首字母，用来与indices做比较
 			c := path[0]
 
-			// slash after param
+			// 处理参数后加斜线情况
 			if n.nType == param && c == '/' && len(n.children) == 1 {
 				parentFullPathIndex += len(n.path)
 				n = n.children[0]
@@ -230,7 +239,9 @@ walk:
 				continue walk
 			}
 
-			// Check if a child with the next path byte exists
+			// 检查路path下一个字节的子节点是否存在
+			// 比如s的子节点现在是earch和upport，indices为eu
+			// 如果新加一个路由为super，那么就是和upport有匹配的部分u，将继续分列现在的upport节点
 			for i, max := 0, len(n.indices); i < max; i++ {
 				if c == n.indices[i] {
 					parentFullPathIndex += len(n.path)
@@ -255,7 +266,7 @@ walk:
 			return
 		}
 
-		// Otherwise and handle to current node
+		// 已经注册过的节点
 		if n.handlers != nil {
 			panic("handlers are already registered for path '" + fullPath + "'")
 		}
@@ -293,6 +304,7 @@ func findWildcard(path string) (wildcard string, i int, valid bool) {
 func (n *node) insertChild(path string, fullPath string, handlers HandlersChain) {
 	for {
 		// Find prefix until first wildcard
+		// 查找前缀直到第一个通配符
 		wildcard, i, valid := findWildcard(path)
 		if i < 0 { // No wildcard found
 			break
