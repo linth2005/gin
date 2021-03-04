@@ -88,6 +88,11 @@ func countParams(path string) uint16 {
 	return n
 }
 
+// 节点类型: static, root, param, catchAll
+// static: 静态节点,
+// root: 如果插入的节点是第一个, 那么是root节点
+// catchAll: 有*匹配的节点
+// param: 参数节点
 type nodeType uint8
 
 const (
@@ -97,15 +102,26 @@ const (
 	catchAll
 )
 
+// 路由树节点
 type node struct {
-	path      string
-	indices   string
+	// 当前节点URL路径
+	path string
+	// 和children字段对应, 保存的是分裂的分支的第一个字符
+	// 例如search和support, 那么s节点的indices对应的"eu"
+	// 代表有两个分支, 分支的首字母分别是e和u
+	indices string
+	// 判断当前节点路径是不是含有参数的节点
 	wildChild bool
-	nType     nodeType
-	priority  uint32
-	children  []*node
-	handlers  HandlersChain
-	fullPath  string
+
+	nType nodeType
+	// 优先级，子节点、子子节点等注册的handler数量
+	priority uint32
+	// 当前节点的所有子节点
+	children []*node
+	// 当前节点对于的所有方法链
+	handlers HandlersChain
+	// 完整路径
+	fullPath string
 }
 
 // Increments priority of the given child and reorders if necessary

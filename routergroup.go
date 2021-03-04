@@ -19,6 +19,7 @@ type IRouter interface {
 
 // IRoutes defines all router handle interface.
 type IRoutes interface {
+	// 添加其他中间件
 	Use(...HandlerFunc) IRoutes
 
 	Handle(string, string, ...HandlerFunc) IRoutes
@@ -211,13 +212,16 @@ func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileS
 	}
 }
 
+// 合并当前路由组下的所有中间件调用链
 func (group *RouterGroup) combineHandlers(handlers HandlersChain) HandlersChain {
 	finalSize := len(group.Handlers) + len(handlers)
 	if finalSize >= int(abortIndex) {
 		panic("too many handlers")
 	}
 	mergedHandlers := make(HandlersChain, finalSize)
+	// 路由中本身注册的调用链
 	copy(mergedHandlers, group.Handlers)
+	// 业务方法自身加入到调用链最后
 	copy(mergedHandlers[len(group.Handlers):], handlers)
 	return mergedHandlers
 }

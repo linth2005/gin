@@ -155,6 +155,7 @@ func New() *Engine {
 		// Multipart 请求内存不超过 32MB
 		MaxMultipartMemory: defaultMultipartMemory,
 		// 方法树根节点集合
+		// 方法树集合 初始化容量为9的切片（HTTP1.1请求方法共9种）
 		trees:            make(methodTrees, 0, 9),
 		delims:           render.Delims{Left: "{{", Right: "}}"},
 		secureJSONPrefix: "while(1);",
@@ -269,18 +270,25 @@ func (engine *Engine) rebuild405Handlers() {
 }
 
 func (engine *Engine) addRoute(method, path string, handlers HandlersChain) {
+	// 验证路径必须以/ 开始，否则抛出异常
 	assert1(path[0] == '/', "path must begin with '/'")
 	assert1(method != "", "HTTP method can not be empty")
+	// 至少有一个处理方法
 	assert1(len(handlers) > 0, "there must be at least one handler")
-
+	// 打印当前路径 方法 路径 需要处理的中间件个数
 	debugPrintRoute(method, path, handlers)
 
+	// 每一个类型的方法都创建一颗树
 	root := engine.trees.get(method)
 	if root == nil {
+		// 因为路由是一个基数树，全部是从根节点开始，如果第一次调用注册方法的时候跟是不存在的，
+		// 就注册一个根节点， 这里是每一种请求方法是一个根节点，会存在多个树
 		root = new(node)
 		root.fullPath = "/"
+		// 加入到 engine 方法树中
 		engine.trees = append(engine.trees, methodTree{method: method, root: root})
 	}
+	// 向树中添加路由
 	root.addRoute(path, handlers)
 
 	// Update maxParams
