@@ -145,19 +145,26 @@ func New() *Engine {
 		// 首先删除多余的路径，像 ../ 或者 // 会被删除。
 		// 然后将清理过的路径再不区分大小写查找，如果能够找到对应的路由， 将请求重定向到
 		// 这个路由上 ( GET 是 301， 其他是 307 ) 。
-		RedirectFixedPath:      false,
+		RedirectFixedPath: false,
+		// 如果开启该参数，当当前请求不能被路由时，路由会自己去检查其他方法是否被允许.在这种情况下会响应"Method Not Allowed"，
+		// 并返回状态码405; 如果没有其他方法被允许，将会委托给NotFound的handler
 		HandleMethodNotAllowed: false,
-		ForwardedByClientIP:    true,
-		AppEngine:              defaultAppEngine,
-		UseRawPath:             false,
-		RemoveExtraSlash:       false,
-		UnescapePathValues:     true,
+		// 是否转发客户端ip
+		ForwardedByClientIP: true,
+		// 如果开启将会在请求中增加一个以"X-AppEngine..."开头的header
+		AppEngine:  defaultAppEngine,
+		UseRawPath: false,
+		// 是否删除额外的反斜线
+		RemoveExtraSlash:   false,
+		UnescapePathValues: true,
 		// Multipart 请求内存不超过 32MB
 		MaxMultipartMemory: defaultMultipartMemory,
 		// 方法树根节点集合
 		// 方法树集合 初始化容量为9的切片（HTTP1.1请求方法共9种）
-		trees:            make(methodTrees, 0, 9),
-		delims:           render.Delims{Left: "{{", Right: "}}"},
+		trees: make(methodTrees, 0, 9),
+		// 渲染分隔符，用于HTML、XML等
+		delims: render.Delims{Left: "{{", Right: "}}"},
+		// 防止JSON劫持前缀
 		secureJSONPrefix: "while(1);",
 	}
 	engine.RouterGroup.engine = engine
@@ -393,13 +400,17 @@ func (engine *Engine) RunListener(listener net.Listener) (err error) {
 // ServeHTTP conforms to the http.Handler interface.
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c := engine.pool.Get().(*Context)
+	// 重置responseWriter
 	c.writermem.reset(w)
+	// 重置req
 	c.Request = req
+	// 重置其他属性
 	c.reset()
 
 	// 处理实际的请求
 	engine.handleHTTPRequest(c)
 
+	// 归还实例池
 	engine.pool.Put(c)
 }
 
@@ -429,19 +440,23 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
 
 	// Find root of the tree for the given HTTP method
 	t := engine.trees
+	// 根据httpMethod 获取指定的路由树
 	for i, tl := 0, len(t); i < tl; i++ {
 		if t[i].method != httpMethod {
 			continue
 		}
 		root := t[i].root
 		// Find route in tree
+		// 根据path在树中进行匹配
 		value := root.getValue(rPath, c.params, unescape)
 		if value.params != nil {
 			c.Params = *value.params
 		}
 		if value.handlers != nil {
+			// 匹配到之后参数全部写入Context
 			c.handlers = value.handlers
 			c.fullPath = value.fullPath
+			// 执行方法链
 			c.Next()
 			c.writermem.WriteHeaderNow()
 			return
@@ -458,6 +473,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
 		break
 	}
 
+	// 路径匹配但方法不匹配的情况
 	if engine.HandleMethodNotAllowed {
 		for _, tree := range engine.trees {
 			if tree.method == httpMethod {
@@ -470,6 +486,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
 			}
 		}
 	}
+	// 没有找到路径的情况
 	c.handlers = engine.allNoRoute
 	serveError(c, http.StatusNotFound, default404Body)
 }

@@ -44,12 +44,17 @@ const abortIndex int8 = math.MaxInt8 / 2
 // Context is the most important part of gin. It allows us to pass variables between middleware,
 // manage the flow, validate the JSON of a request and render a JSON response for example.
 type Context struct {
+	// ServeHTTP的第二个参数: request
+	Request *http.Request
+
 	writermem responseWriter
-	Request   *http.Request
 	Writer    ResponseWriter
 
-	Params   Params
+	// URL里面的参数，比如：/queryUserById/:id
+	Params Params
+	// 方法链
 	handlers HandlersChain
+	// 当前处理到的Handler下标
 	index    int8
 	fullPath string
 
@@ -60,6 +65,7 @@ type Context struct {
 	mu sync.RWMutex
 
 	// Keys is a key/value pair exclusively for the context of each request.
+	// 在context可以设置的值，王卡、定向等使用传递用户相关的参数
 	Keys map[string]interface{}
 
 	// Errors is a list of errors attached to all the handlers/middlewares who used this context.

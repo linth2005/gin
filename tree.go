@@ -112,13 +112,17 @@ type node struct {
 	indices string
 	// 判断当前节点路径是不是含有参数的节点
 	wildChild bool
-
+	// 节点类型，包括static, root, param, catchAll
+	// static: 静态节点（默认），比如上面的s，earch等节点
+	// root: 树的根节点
+	// catchAll: 有*匹配的节点
+	// param: 参数节点
 	nType nodeType
 	// 优先级，子节点、子子节点等注册的handler数量
 	priority uint32
 	// 当前节点的所有子节点
 	children []*node
-	// 当前节点对于的所有方法链
+	// 当前节点的所有方法链
 	handlers HandlersChain
 	// 完整路径
 	fullPath string
@@ -429,17 +433,22 @@ func (n *node) getValue(path string, params *Params, unescape bool) (value nodeV
 walk: // Outer loop for walking the tree
 	for {
 		prefix := n.path
+		// 传递路径与当前节点的基础路径比较
 		if len(path) > len(prefix) {
+			// 截取前缀并比对是否一致
 			if path[:len(prefix)] == prefix {
+				// 剔除公共前缀，寻找
 				path = path[len(prefix):]
 				// If this node does not have a wildcard (param or catchAll)
 				// child, we can just look up the next child node and continue
 				// to walk down the tree
+				// 当前节点是否参数类型节点
 				if !n.wildChild {
+					// 获取路径前缀，用于递归匹配子节点
 					idxc := path[0]
 					for i, c := range []byte(n.indices) {
 						if c == idxc {
-							n = n.children[i]
+							n = n.children[i] // 赋值为子节点，继续遍历
 							continue walk
 						}
 					}
@@ -447,13 +456,16 @@ walk: // Outer loop for walking the tree
 					// Nothing found.
 					// We can recommend to redirect to the same URL without a
 					// trailing slash if a leaf exists for that path.
+					// 没找到，但如果URL相同且没有/的叶子节点，重定向至此路径
 					value.tsr = (path == "/" && n.handlers != nil)
 					return
 				}
 
 				// Handle wildcard child
+				// 通配符子节点
 				n = n.children[0]
 				switch n.nType {
+				// 参数匹配
 				case param:
 					// Find param end (either '/' or path end)
 					end := 0
@@ -462,6 +474,7 @@ walk: // Outer loop for walking the tree
 					}
 
 					// Save param value
+					// 保存参数，并返回赋值给context
 					if params != nil {
 						if value.params == nil {
 							value.params = params
@@ -505,7 +518,7 @@ walk: // Outer loop for walking the tree
 						value.tsr = (n.path == "/" && n.handlers != nil)
 					}
 					return
-
+				// 全匹配
 				case catchAll:
 					// Save param value
 					if params != nil {
@@ -537,9 +550,11 @@ walk: // Outer loop for walking the tree
 			}
 		}
 
+		// 全匹配
 		if path == prefix {
 			// We should have reached the node containing the handle.
 			// Check if this node has a handle registered.
+			// 当前节点是否有Handler处理
 			if value.handlers = n.handlers; value.handlers != nil {
 				value.fullPath = n.fullPath
 				return
@@ -555,6 +570,7 @@ walk: // Outer loop for walking the tree
 
 			// No handle found. Check if a handle for this path + a
 			// trailing slash exists for trailing slash recommendation
+			// 如果没找到，就检查下通配符+/路径是否存在注册函数
 			for i, c := range []byte(n.indices) {
 				if c == '/' {
 					n = n.children[i]
